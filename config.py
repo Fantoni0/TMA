@@ -3,10 +3,12 @@ def load_parameters():
         Loads the defined parameters
     """
     # Input data params
-    DATA_ROOT_PATH = '/media/HDD_3TB/DATASETS/EDUB-SegDesc/'
+    DATA_ROOT_PATH = '/home/fantonio/keras/nmt-keras/examples/EuTrans/'
+    SRC_LAN = 'en'  # Language of the source text
+    TRG_LAN = 'es'  # Language of the target text
 
     # preprocessed features
-    DATASET_NAME = 'EDUB-SegDesc_features'   # Dataset name (add '-linked' suffix for using
+    DATASET_NAME = 'EuTrans-linked'   # Dataset name (add '-linked' suffix for using
                                                     # dataset with temporally-linked training data)
                                                     #
                                                     #    -linked
@@ -23,12 +25,18 @@ def load_parameters():
                                                           # (only applicable if we are using a pre-trained model, default None)
     VOCABULARIES_MAPPING = {'description': 'description',
                             'state_below': 'description',
-                            'prev_description': 'description'}
+                            'prev_sentence': 'description'}
+
+    # SRC_LAN or TRG_LAN will be added to the file names
+    TEXT_FILES = {'train': 'training.',  # Data files
+                  'val': 'dev.',
+                  'test': 'test.'}
 
     PRE_TRAINED_VOCABULARY_NAME = None  #'1BillionWords_vocabulary'      # Dataset name for reusing vocabulary of pre-trained model
 
     # Input data
-    INPUT_DATA_TYPE = 'video-features'                          # 'video-features' or 'video'
+    #INPUT_DATA_TYPE = 'video-features'                          # 'video-features' or 'video'
+    INPUT_DATA_TYPE = 'text'                          # 'video-features' or 'video'
     NUM_FRAMES = 26                                             # fixed number of input frames per video
 
     if '-noninfo' in DATASET_NAME:
@@ -43,9 +51,9 @@ def load_parameters():
                          'val': 'Annotations/%s/val_feat_list'+suffix_annotations+'.txt',
                          'test': 'Annotations/%s/test_feat_list'+suffix_annotations+'.txt',
                         }
-    FRAMES_COUNTS_FILES = {  'train': 'Annotations/%s/train_feat_counts'+suffix_annotations+'.txt',           # Frames counts files
-                             'val': 'Annotations/%s/val_feat_counts'+suffix_annotations+'.txt',
-                             'test': 'Annotations/%s/test_feat_counts'+suffix_annotations+'.txt',
+    FRAMES_COUNTS_FILES = {'train': 'Annotations/%s/train_feat_counts'+suffix_annotations+'.txt',           # Frames counts files
+                           'val': 'Annotations/%s/val_feat_counts'+suffix_annotations+'.txt',
+                           'test': 'Annotations/%s/test_feat_counts'+suffix_annotations+'.txt',
                           }
     FEATURE_NAMES = ['ImageNet'
                      + suffix_features] # append '_L2' at the end of each feature type if using their L2 version
@@ -62,9 +70,9 @@ def load_parameters():
 
     # Dataset parameters
     if not '-vidtext-embed' in DATASET_NAME:
-        INPUTS_IDS_DATASET = ['video', 'state_below']  # Corresponding inputs of the dataset
+        INPUTS_IDS_DATASET = ['source_text', 'state_below']  # Corresponding inputs of the dataset
         OUTPUTS_IDS_DATASET = ['description']  # Corresponding outputs of the dataset
-        INPUTS_IDS_MODEL = ['video', 'state_below']  # Corresponding inputs of the built model
+        INPUTS_IDS_MODEL = ['source_text', 'state_below']  # Corresponding inputs of the built model
         OUTPUTS_IDS_MODEL = ['description']  # Corresponding outputs of the built model
     else:
         INPUTS_IDS_DATASET = ['video', 'description']  # Corresponding inputs of the dataset
@@ -75,13 +83,13 @@ def load_parameters():
 
     if '-linked' in DATASET_NAME:
 
-        LINK_SAMPLE_FILES = {'train': 'Annotations/train_link_samples'+suffix_annotations+'.txt',     # Links index files
+        LINK_SAMPLE_FILES = {'train': 'Annotations/train_link_samples'+suffix_annotations+'.txt',
                              'val': 'Annotations/val_link_samples'+suffix_annotations+'.txt',
                              'test': 'Annotations/test_link_samples'+suffix_annotations+'.txt',
-                            }
+                            } # Links index files
 
-        INPUTS_IDS_DATASET.append('prev_description')
-        INPUTS_IDS_MODEL.append('prev_description')
+        INPUTS_IDS_DATASET.append('prev_sentence')
+        INPUTS_IDS_MODEL.append('prev_sentence')
 
         if '-vidtext' in DATASET_NAME:
             INPUTS_IDS_DATASET.append('prev_video')
@@ -97,7 +105,7 @@ def load_parameters():
         METRICS = ['coco']  # Metric used for evaluating model after each epoch (leave empty if only prediction is required)
     else:
         METRICS = ['multiclass_metrics']
-    EVAL_ON_SETS = ['val', 'test']                 # Possible values: 'train', 'val' and 'test' (external evaluator)
+    EVAL_ON_SETS = ['val']                 # Possible values: 'train', 'val' and 'test' (external evaluator)
     EVAL_ON_SETS_KERAS = []                        # Possible values: 'train', 'val' and 'test' (Keras' evaluator)
     START_EVAL_ON_EPOCH = 0                        # First epoch where the model will be evaluated
     EVAL_EACH_EPOCHS = False                       # Select whether evaluate between N epochs or N updates
@@ -127,19 +135,25 @@ def load_parameters():
     SAMPLE_EACH_UPDATES = 50                     # Sampling frequency (default 450)
 
     # Word representation params
-    TOKENIZATION_METHOD = 'tokenize_icann'        # Select which tokenization we'll apply:
+    TOKENIZATION_METHOD = 'tokenize_none'        # Select which tokenization we'll apply:
                                                   #  tokenize_basic, tokenize_aggressive, tokenize_soft,
                                                   #  tokenize_icann or tokenize_questions
 
     FILL = 'end'                                  # whether we fill the 'end' or the 'start' of the sentence with 0s
-    TRG_LAN = 'en'                                # Language of the outputs (mainly used for the Meteor evaluator)
+    #TRG_LAN = 'en'                                # Language of the outputs (mainly used for the Meteor evaluator)
     PAD_ON_BATCH = True                           # Whether we take as many timesteps as the longes sequence of the batch
                                                   # or a fixed size (MAX_OUTPUT_TEXT_LEN)
 
     # Input image parameters
     DATA_AUGMENTATION = False                      # Apply data augmentation on input data (noise on features)
     DATA_AUGMENTATION_TYPE = ['random_selection']  # 'random_selection', 'noise'
-    IMG_FEAT_SIZE = 1024                           # Size of the image features
+    IMG_FEAT_SIZE = 0#1024                           # Size of the image features
+
+    # Input text parameters
+    INPUT_VOCABULARY_SIZE = 0                     # Size of the input vocabulary. Set to 0 for using all,
+    MAX_INPUT_TEXT_LEN = 30
+    MAX_INPUT_TEXT_LEN_TEST = MAX_INPUT_TEXT_LEN * 2
+    MIN_OCCURRENCES_INPUT_VOCAB = 0
 
     # Output text parameters
     OUTPUT_VOCABULARY_SIZE = 0                    # Size of the input vocabulary. Set to 0 for using all,
@@ -153,17 +167,17 @@ def load_parameters():
     LOSS = 'categorical_crossentropy'
     CLASSIFIER_ACTIVATION = 'softmax'
 
-    OPTIMIZER = 'Adadelta'                            # Optimizer
-    LR = 1.                                   # Learning rate. Recommended values - Adam 0.001 - Adadelta 1.0
+    OPTIMIZER = 'Adadelta'                        # Optimizer
+    LR = 1.                                       # Learning rate. Recommended values - Adam 0.001 - Adadelta 1.0
     CLIP_C = 10.                                  # During training, clip gradients to this norm
     if not '-vidtext-embed' in DATASET_NAME:
-        SAMPLE_WEIGHTS = True                         # Select whether we use a weights matrix (mask) for the data outputs
-    LR_DECAY = None                                  # Minimum number of epochs before the next LR decay. Set to None if don't want to decay the learning rate
-    LR_GAMMA = 0.995                               # Multiplier used for decreasing the LR
+        SAMPLE_WEIGHTS = True                     # Select whether we use a weights matrix (mask) for the data outputs
+    LR_DECAY = None                               # Minimum number of epochs before the next LR decay. Set to None if don't want to decay the learning rate
+    LR_GAMMA = 0.995                              # Multiplier used for decreasing the LR
 
     # Training parameters
-    MAX_EPOCH = 200                                # Stop when computed this number of epochs
-    BATCH_SIZE = 64                               # ABiViRNet trained with BATCH_SIZE = 64
+    MAX_EPOCH = 200                               # Stop when computed this number of epochs
+    BATCH_SIZE = 16                               # ABiViRNet trained with BATCH_SIZE = 64
 
     HOMOGENEOUS_BATCHES = False                         # Use batches with homogeneous output lengths for every minibatch (Possibly buggy!)
     PARALLEL_LOADERS = 8                                # Parallel data batch loaders
@@ -182,15 +196,26 @@ def load_parameters():
         STOP_METRIC = 'accuracy'
 
     # Model parameters
-    MODEL_TYPE = 'TemporallyLinkedVideoDescriptionAttDoublePrev'  # 'ArcticVideoCaptionWithInit'
-                                                                  # 'ArcticVideoCaptionNoLSTMEncWithInit'
-                                                                  # 'TemporallyLinkedVideoDescriptionNoAtt'
-                                                                  # 'TemporallyLinkedVideoDescriptionAtt'
-                                                                  # 'TemporallyLinkedVideoDescriptionAttDoublePrev'
-                                                                  # 'VideoTextEmbedding'
-                                                                  # 'DeepSeek'
+    MODEL_TYPE = 'LinkedTranslation'                               # 'ArcticVideoCaptionWithInit'
+                                                                   # 'ArcticVideoCaptionNoLSTMEncWithInit'
+                                                                   # 'TemporallyLinkedVideoDescriptionNoAtt'
+                                                                   # 'TemporallyLinkedVideoDescriptionAtt'
+                                                                   # 'TemporallyLinkedVideoDescriptionAttDoublePrev'
+                                                                   # 'VideoTextEmbedding'
+                                                                   # 'DeepSeek'
+                                                                   # '--------------------NMT------------------------'
+                                                                   # 'LinkedTranslation'
+                                                                   # 'DoubleLinkedTranslation'
 
-    RNN_TYPE = 'LSTM'                             # RNN unit type ('LSTM' supported)
+
+    RNN_TYPE = ENCODER_RNN_TYPE = 'LSTM'  # RNN unit type ('LSTM' supported)
+    DECODER_RNN_TYPE = 'ConditionalLSTM'  # RNN unit type ('LSTM' supported)
+    # Added parameters with respect original config
+    SOURCE_TEXT_EMBEDDING_SIZE = 301
+    SRC_PRETRAINED_VECTORS = None  # Path to pretrained vectors. (e.g. DATA_ROOT_PATH + '/DATA/word2vec.%s.npy' % TRG_LAN)
+    INIT_FUNCTION = 'glorot_uniform'  # General initialization function for matrices.
+    INNER_INIT = 'orthogonal'  # Initialization function for inner RNN matrices.
+    INIT_ATT = 'glorot_uniform'  # Initialization function for attention mechism matrices
 
     # Input text parameters
     TARGET_TEXT_EMBEDDING_SIZE = 301              # Source language word embedding size (ABiViRNet 301)
@@ -361,7 +386,7 @@ def load_parameters():
                               ]
 
 
-    STORE_PATH = 'trained_models/' + MODEL_NAME  + '/' # Models and evaluation results will be stored here
+    STORE_PATH = '/media/HDD_2TB/antonio/trained_models/' + MODEL_NAME  + '/' # Models and evaluation results will be stored here
     DATASET_STORE_PATH = 'datasets/'                   # Dataset instance will be stored here
 
     SAMPLING_SAVE_MODE = 'list'                        # 'list' or 'vqa'

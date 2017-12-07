@@ -34,6 +34,8 @@ def train_model(params):
         params['OUTPUT_VOCABULARY_SIZE'] = dataset.vocabulary_len[params['OUTPUTS_IDS_DATASET'][0]]
     else:
         params['OUTPUT_VOCABULARY_SIZE'] = dataset.vocabulary_len[params['INPUTS_IDS_DATASET'][1]]
+    # INPUT VOCABULARY SIZE
+    params['INPUT_VOCABULARY_SIZE'] = dataset.vocabulary_len[params['INPUTS_IDS_DATASET'][0]]
     ###########
 
 
@@ -135,12 +137,18 @@ def train_model(params):
     total_start_time = timer()
 
     logger.debug('Starting training!')
-    training_params = {'n_epochs': params['MAX_EPOCH'], 'batch_size': params['BATCH_SIZE'],
-                       'homogeneous_batches': params['HOMOGENEOUS_BATCHES'], 'maxlen': params['MAX_OUTPUT_TEXT_LEN'],
-                       'lr_decay': params['LR_DECAY'], 'lr_gamma': params['LR_GAMMA'],
-                       'epochs_for_save': params['EPOCHS_FOR_SAVE'], 'verbose': params['VERBOSE'],
-                       'eval_on_sets': params['EVAL_ON_SETS_KERAS'], 'n_parallel_loaders': params['PARALLEL_LOADERS'],
-                       'extra_callbacks': callbacks, 'reload_epoch': params['RELOAD'], 'epoch_offset': params['RELOAD'],
+    training_params = {'n_epochs': params['MAX_EPOCH'],
+                       'batch_size': params['BATCH_SIZE'],
+                       'homogeneous_batches': params['HOMOGENEOUS_BATCHES'],
+                       'maxlen': params['MAX_OUTPUT_TEXT_LEN'],
+                       'lr_decay': params['LR_DECAY'],
+                       'lr_gamma': params['LR_GAMMA'],
+                       'epochs_for_save': params['EPOCHS_FOR_SAVE'],
+                       'verbose': params['VERBOSE'],
+                       'eval_on_sets': params['EVAL_ON_SETS_KERAS'],
+                       'n_parallel_loaders': params['PARALLEL_LOADERS'],
+                       'extra_callbacks': callbacks, 'reload_epoch': params['RELOAD'],
+                       'epoch_offset': params['RELOAD'],
                        'data_augmentation': params['DATA_AUGMENTATION'],
                        'patience': params.get('PATIENCE', 0),  # early stopping parameters
                        'metric_check': params.get('STOP_METRIC', None),
@@ -167,6 +175,8 @@ def apply_Video_model(params):
         params['OUTPUT_VOCABULARY_SIZE'] = dataset.vocabulary_len[params['OUTPUTS_IDS_DATASET'][0]]
     else:
         params['OUTPUT_VOCABULARY_SIZE'] = dataset.vocabulary_len[params['INPUTS_IDS_DATASET'][1]]
+
+    params['INPUT_VOCABULARY_SIZE'] = dataset.vocabulary_len[params['INPUTS_IDS_DATASET'][0]]
     ###########
 
 
