@@ -42,7 +42,6 @@ def build_dataset_text(params):
                          split,
                          type='text',
                          id=params['OUTPUTS_IDS_DATASET'][0],
-                         #build_vocabulary=True,
                          pad_on_batch=True,
                          tokenization=params['TOKENIZATION_METHOD'],
                          sample_weights=params['SAMPLE_WEIGHTS'],
@@ -73,7 +72,7 @@ def build_dataset_text(params):
                         min_occ=params['MIN_OCCURRENCES_INPUT_VOCAB'])
 
             if len(params['INPUTS_IDS_DATASET']) > 1: #State_below
-                if 'train' in split:
+                if 'train' == split:
                     ds.setInput(base_path + '/' + params['TEXT_FILES'][split] + params['TRG_LAN'],
                                 split,
                                 type='text',
@@ -136,6 +135,7 @@ def build_dataset_text(params):
             ds.setInput(base_path + '/' + file,
                         s,
                         type='id',
+                        required=True, # prueba
                         id=params['INPUTS_IDS_DATASET'][-1],
                         repeat_set=rep)
 
@@ -163,8 +163,6 @@ def build_dataset_text(params):
             ds.vocabulary_len[id_new] = len(dataset_pretrained_vocabulary[id_old]['idx2words'])
 
     return ds
-
-
 
 def build_dataset(params):
     if 'LinkedTranslation' in params['MODEL_TYPE']:
@@ -428,6 +426,144 @@ def build_dataset(params):
 
     return ds
 
+def update_dataset_from_file(ds,
+                             input_text_filename,
+                             input_text_links,
+                             params,
+                             splits=None,
+                             output_text_filename=None,
+                             remove_outputs=False,
+                             compute_state_below=False,
+                             recompute_references=False):
+    """
+    Updates the dataset instance from a text file according to the given params.
+    Used for sampling
+
+    :param ds: Dataset instance
+    :param input_text_filename: Source language sentences
+    :param input_text_links: Source language linked indexes
+    :param params: Parameters for building the dataset
+    :param splits: Splits to sample
+    :param output_text_filename: Target language sentences
+    :param remove_outputs: Remove outputs from dataset (if True, will ignore the output_text_filename parameter)
+    :param compute_state_below: Compute state below input (shifted target text for professor teaching)
+
+    :return: Dataset object with the processed data
+    """
+
+    base_path = params['DATA_ROOT_PATH']
+    if splits is None:
+        splits = ['val']
+
+    for split in splits:
+        if remove_outputs:
+            ds.removeOutput(split,
+                            type='text',
+                            id=params['OUTPUTS_IDS_DATASET'][0])
+        elif output_text_filename is not None:
+            ds.setOutput(output_text_filename,
+                         split,
+                         type='text',
+                         id=params['OUTPUTS_IDS_DATASET'][0],
+                         tokenization=params.get('TOKENIZATION_METHOD', 'tokenize_none'),
+                         build_vocabulary=False,
+                         pad_on_batch=params['PAD_ON_BATCH'],
+                         fill=params.get('FILL_TARGET', 'end'),
+                         sample_weights=params['SAMPLE_WEIGHTS'],
+                         max_text_len=params['MAX_OUTPUT_TEXT_LEN'],
+                         max_words=params['OUTPUT_VOCABULARY_SIZE'],
+                         min_occ=params['MIN_OCCURRENCES_OUTPUT_VOCAB'],
+                         overwrite_split=True)
+
+        # INPUT DATA
+        num_captions_train = np.load(base_path + '/' + params['DESCRIPTION_COUNTS_FILES']['train'])
+        num_captions_val = np.load(base_path + '/' + params['DESCRIPTION_COUNTS_FILES']['val'])
+        num_captions_test = np.load(base_path + '/' + params['DESCRIPTION_COUNTS_FILES']['test'])
+
+        ds.setInput(input_text_filename,
+                    split,
+                    type='text',
+                    id=params['INPUTS_IDS_DATASET'][0],
+                    tokenization=params.get('TOKENIZATION_METHOD', 'tokenize_none'),
+                    build_vocabulary=False,
+                    pad_on_batch=params.get('PAD_ON_BATCH', True),
+                    fill=params.get('FILL', 'end'),
+                    max_text_len=params.get('MAX_INPUT_TEXT_LEN', 100),
+                    max_words=params.get('INPUT_VOCABULARY_SIZE', 0),
+                    min_occ=params.get('MIN_OCCURRENCES_INPUT_VOCAB', 0),
+                    overwrite_split=True)
+
+        if compute_state_below:
+            # INPUT DATA
+            ds.setInput(output_text_filename,
+                        split,
+                        type='text',
+                        id=params['INPUTS_IDS_DATASET'][1],
+                        pad_on_batch=params.get('PAD_ON_BATCH', True),
+                        tokenization=params.get('TOKENIZATION_METHOD', 'tokenize_none'),
+                        build_vocabulary=False,
+                        offset=1,
+                        fill=params['FILL'],
+                        max_text_len=params['MAX_INPUT_TEXT_LEN'],
+                        max_words=params['INPUT_VOCABULARY_SIZE'],
+                        min_occ=params['MIN_OCCURRENCES_OUTPUT_VOCAB'],
+                        overwrite_split=True)
+        else:
+            ds.setInput(None,
+                        split,
+                        type='ghost',
+                        id=params['INPUTS_IDS_DATASET'][1],
+                        required=False,
+                        overwrite_split=True)
+
+
+        if params['ALIGN_FROM_RAW']:
+            ds.setRawInput(input_text_filename,
+                           split,
+                           type='file-name',
+                           id='raw_' + params['INPUTS_IDS_DATASET'][0],
+                           overwrite_split=True)
+
+    # Set inputs for temporally-linked samples
+    # Set input captions from previous sentence
+    #ds, repeat_images = insertTemporallyLinkedSentences(ds, params)
+
+
+    # Insert empty prev_descriptions on val and test sets
+    for split in ['val', 'test']:
+        ds.setInput([],
+                    split,
+                    type='text',
+                    id=params['INPUTS_IDS_DATASET'][2],
+                    build_vocabulary=params['OUTPUTS_IDS_DATASET'][0],
+                    tokenization=params['TOKENIZATION_METHOD'],
+                    fill=params['FILL'],
+                    pad_on_batch=True,
+                    max_text_len=params['MAX_OUTPUT_TEXT_LEN'],
+                    min_occ=params['MIN_OCCURRENCES_VOCAB'],
+                    required=False,
+                    overwrite_split=True)
+
+    # Set previous data indices
+    # Not uppderbound when implemented (look original method)
+    print(params['INPUTS_IDS_DATASET'])
+    for s, file in params['LINK_SAMPLE_FILES'].iteritems():
+        rep = 1
+        ds.setInput(input_text_links,
+                    s,
+                    type='id',
+                    id=params['INPUTS_IDS_DATASET'][-1],
+                    repeat_set=rep,
+                    overwrite_split=True,
+                    required=False)
+
+    # If we had multiple references per sentence
+    if recompute_references:
+        keep_n_captions(ds, repeat=1, n=1, set_names=params['EVAL_ON_SETS'])
+
+    return ds
+
+
 
 def keep_n_captions(ds, repeat, n=1, set_names=['val', 'test']):
     ''' Keeps only n captions per image and stores the rest in dictionaries for a later evaluation
@@ -483,7 +619,6 @@ def keep_n_captions(ds, repeat, n=1, set_names=['val', 'test']):
         new_len = len(new_Y)
         exec ('ds.len_' + s + ' = new_len')
         logging.info('Samples reduced to ' + str(new_len) + ' in ' + s + ' set.')
-
 
 def insertTemporallyLinkedCaptions(ds, params, set_names=['train'],
                                    upperbound=False,
@@ -742,15 +877,15 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
 
     for s in set_names:
 
-        # get temporal links
+        # Get temporal links
         links = []
         num_cap = []  # We just have one possible translation as output
         with open(base_path + '/' + params['LINK_SAMPLE_FILES'][s], 'r') as f_links:
             for line in f_links:
                 links.append(int(line.strip()))
                 num_cap.append(1)
-        outputs = []
 
+        outputs = []
         with open(base_path + '/' + params['TEXT_FILES'][s] + params['TRG_LAN'], 'r') as f_outs:
             for line in f_outs:
                 outputs.append(line.strip())
@@ -812,7 +947,7 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                     sentences_repeat.append(num_cap[i])
                     for out in these_outputs:
                         final_outputs.append(out)
-                        final_inputs.append('')
+                        final_inputs.append('.')
                 else:
                     prev_ini_out = int(np.sum(num_cap[:link]))
                     prev_outputs = outputs[prev_ini_out:prev_ini_out + num_cap[link]]
@@ -832,8 +967,6 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                     type=params['INPUT_DATA_TYPE'],
                     id=params['INPUTS_IDS_DATASET'][0],
                     repeat_set=sentences_repeat,
-                    #max_video_len=params['NUM_FRAMES'],
-                    #feat_len=params['IMG_FEAT_SIZE'],
                     overwrite_split=True,
                     data_augmentation_types=params['DATA_AUGMENTATION_TYPE'])
 
@@ -843,6 +976,7 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                      s,
                      type='text',
                      id=params['OUTPUTS_IDS_DATASET'][0],
+                     repeat_set=sentences_repeat,
                      build_vocabulary=True,
                      tokenization=params['TOKENIZATION_METHOD'],
                      fill=params['FILL'],
@@ -857,6 +991,7 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                     s,
                     type='text',
                     id=params['INPUTS_IDS_DATASET'][1],
+                    repeat_set=sentences_repeat,
                     required=False,
                     tokenization=params['TOKENIZATION_METHOD'],
                     pad_on_batch=True,
@@ -867,7 +1002,6 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                     max_words=params['OUTPUT_VOCABULARY_SIZE'],
                     min_occ=params['MIN_OCCURRENCES_VOCAB'],
                     overwrite_split=True)
-
 
         # Set new input captions from previous temporally-linked event/video
         ds.setInput(final_inputs,
@@ -886,8 +1020,6 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
         repeat_sentences[s] = sentences_repeat
 
     return ds, repeat_sentences
-
-
 
 def insertTemporallyLinkedCaptionsVidText(ds, params, vidtext_set_names={'video': ['train'], 'text': ['train']}):
     """
@@ -1084,7 +1216,6 @@ def insertTemporallyLinkedCaptionsVidText(ds, params, vidtext_set_names={'video'
         repeat_images[s] = images_repeat
 
     return ds, repeat_images
-
 
 def insertVidTextEmbedNegativeSamples(ds, params, repeat):
     """

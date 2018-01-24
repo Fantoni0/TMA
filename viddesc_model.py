@@ -2433,6 +2433,7 @@ class VideoDesc_Model(Model_Wrapper):
         :param params:
         :return:
         """
+
         # Prepare variables for temporally linked samples
         self.ids_temporally_linked_inputs = [self.ids_inputs[2]]
         self.matchings_sample_to_next_sample = {self.ids_outputs[0]: self.ids_inputs[2]}
@@ -2443,8 +2444,7 @@ class VideoDesc_Model(Model_Wrapper):
         # 2.1. Source word embedding
         src_embedding = Embedding(params['INPUT_VOCABULARY_SIZE'], params['SOURCE_TEXT_EMBEDDING_SIZE'],
                                   name='source_word_embedding',
-                                  embeddings_regularizer=l2(params['WEIGHT_DECAY']),
-                                  embeddings_initializer=params['INIT_FUNCTION'],
+                                  W_regularizer=l2(params['WEIGHT_DECAY']),
                                   trainable=self.src_embedding_weights_trainable,
                                   weights=self.src_embedding_weights,
                                   mask_zero=True)(src_text)
@@ -2489,6 +2489,7 @@ class VideoDesc_Model(Model_Wrapper):
                                                            return_sequences=True,
                                                            name='encoder_' + params['ENCODER_RNN_TYPE'])(src_embedding)
         annotations = Regularize(annotations, params, name='annotations')
+
         # 2.3. Potentially deep encoder
         for n_layer in range(1, params['N_LAYERS_ENCODER']):
             if params['BIDIRECTIONAL_DEEP_ENCODER']:
@@ -2551,11 +2552,12 @@ class VideoDesc_Model(Model_Wrapper):
 
         # Previously generated translation from temporally-linked sample
         prev_desc = Input(name=self.ids_inputs[2], batch_shape=tuple([None, None]), dtype='int32')
+        print("PREV_DESC= ", prev_desc)
         # previous description and previously generated words share the same embedding
         prev_desc_emb = shared_emb(prev_desc)
 
         # LSTM for encoding the previous translation
-        '''
+
         if params['PREV_SENT_ENCODER_HIDDEN_SIZE'] > 0:
             if params['BIDIRECTIONAL_PREV_SENT_ENCODER']:
                 prev_desc_enc = Bidirectional(eval(params['RNN_TYPE'])(params['PREV_SENT_ENCODER_HIDDEN_SIZE'],
@@ -2618,7 +2620,7 @@ class VideoDesc_Model(Model_Wrapper):
 
                 current_prev_desc_enc = Regularize(current_prev_desc_enc, params, name='prev_desc_enc_' + str(n_layer))
                 prev_desc_enc = merge([prev_desc_enc, current_prev_desc_enc], mode='sum')
-        '''
+
         # LSTM initialization perceptrons with ctx mean
         # 3.2. Decoder's RNN initialization perceptrons with ctx mean
         ctx_mean = Lambda(lambda x: K.mean(x, axis=1),
@@ -2654,38 +2656,45 @@ class VideoDesc_Model(Model_Wrapper):
 
         # 3.3. Attentional decoder
         sharedAttRNNCond = eval('Att' + params['RNN_TYPE'] + 'Cond2Inputs')(params['DECODER_HIDDEN_SIZE'],
-                                                                            W_regularizer=l2(
+                                                                            kernel_regularizer=l2(
                                                                                 params['RECURRENT_WEIGHT_DECAY']),
-                                                                            U_regularizer=l2(
+                                                                            recurrent_regularizer=l2(
                                                                                 params['RECURRENT_WEIGHT_DECAY']),
-                                                                            V_regularizer=l2(
+                                                                            conditional_regularizer=l2(
                                                                                 params['RECURRENT_WEIGHT_DECAY']),
-                                                                            b_regularizer=l2(
+                                                                            bias_regularizer=l2(
                                                                                 params['RECURRENT_WEIGHT_DECAY']),
-                                                                            wa_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            Wa_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            Ua_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            ba_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            wa2_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            Wa2_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            Ua2_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            ba2_regularizer=l2(params['WEIGHT_DECAY']),
-                                                                            dropout_W=params['RECURRENT_DROPOUT_P'] if
+                                                                            attention_context_wa_regularizer=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            attention_context_regularizer=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            attention_recurrent_regularizer=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            bias_ba_regularizer=l2(params['WEIGHT_DECAY']),
+                                                                            attention_context_wa_regularizer2=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            attention_context_regularizer2=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            attention_recurrent_regularizer2=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            bias_ba_regularizer2=l2(
+                                                                                params['WEIGHT_DECAY']),
+                                                                            dropout=params['RECURRENT_DROPOUT_P'] if
                                                                             params[
                                                                                 'USE_RECURRENT_DROPOUT'] else None,
-                                                                            dropout_U=params['RECURRENT_DROPOUT_P'] if
+                                                                            dropout2=params['RECURRENT_DROPOUT_P'] if
                                                                             params[
                                                                                 'USE_RECURRENT_DROPOUT'] else None,
-                                                                            dropout_V=params['RECURRENT_DROPOUT_P'] if
+                                                                            recurrent_dropout=params['RECURRENT_DROPOUT_P'] if
                                                                             params[
                                                                                 'USE_RECURRENT_DROPOUT'] else None,
-                                                                            dropout_wa=params['RECURRENT_DROPOUT_P'] if
+                                                                            conditional_dropout=params['RECURRENT_DROPOUT_P'] if
                                                                             params[
                                                                                 'USE_RECURRENT_DROPOUT'] else None,
-                                                                            dropout_Wa=params['RECURRENT_DROPOUT_P'] if
+                                                                            attention_dropout=params['RECURRENT_DROPOUT_P'] if
                                                                             params[
                                                                                 'USE_RECURRENT_DROPOUT'] else None,
-                                                                            dropout_Ua=params['RECURRENT_DROPOUT_P'] if
+                                                                            attention_dropout2=params['RECURRENT_DROPOUT_P'] if
                                                                             params[
                                                                                 'USE_RECURRENT_DROPOUT'] else None,
                                                                             return_sequences=True,
@@ -2798,7 +2807,7 @@ class VideoDesc_Model(Model_Wrapper):
             # for applying the initial forward pass
             model_init_input = [src_text, next_words, prev_desc]
             model_init_output = [softout, annotations, prev_desc_enc, h_state]
-            if params['RNN_TYPE'] == 'LSTM':
+            if 'LSTM' in params['RNN_TYPE']:
                 model_init_output.append(h_memory)
 
             self.model_init = Model(input=model_init_input, output=model_init_output)
@@ -2807,7 +2816,7 @@ class VideoDesc_Model(Model_Wrapper):
             self.ids_inputs_init = self.ids_inputs
             # first output must be the output probs.
             self.ids_outputs_init = self.ids_outputs + ['preprocessed_input', 'preprocessed_input2', 'next_state']
-            if params['RNN_TYPE'] == 'LSTM':
+            if 'LSTM' in params['RNN_TYPE']:
                 self.ids_outputs_init.append('next_memory')
 
             # Second, we need to build an additional model with the capability to have the following inputs:
@@ -2852,7 +2861,7 @@ class VideoDesc_Model(Model_Wrapper):
             prev_desc_att = rnn_output[3]
             prev_desc_alphas = rnn_output[4]
             h_state = rnn_output[5]
-            if params['RNN_TYPE'] == 'LSTM':
+            if 'LSTM' in params['RNN_TYPE']:
                 h_memory = rnn_output[6]
             for reg in shared_reg_proj_h:
                 proj_h = reg(proj_h)
@@ -2883,6 +2892,7 @@ class VideoDesc_Model(Model_Wrapper):
             out_layer = shared_activation_tanh(additional_output)
 
             for (deep_out_layer, reg_list) in zip(shared_deep_list, shared_reg_deep_list):
+                print("DOOP, REG_LIST= ", (deep_out_layer, reg_list))
                 out_layer = deep_out_layer(out_layer)
                 for reg in reg_list:
                     out_layer = reg(out_layer)
@@ -2891,7 +2901,7 @@ class VideoDesc_Model(Model_Wrapper):
             softout = shared_FC_soft(out_layer)
             model_next_inputs = [next_words, preprocessed_annotations, preprocessed_prev_description, prev_h_state]
             model_next_outputs = [softout, preprocessed_annotations, preprocessed_prev_description, h_state]
-            if params['RNN_TYPE'] == 'LSTM':
+            if 'LSTM' in params['RNN_TYPE']:
                 model_next_inputs.append(prev_h_memory)
                 model_next_outputs.append(h_memory)
 
@@ -2910,7 +2920,7 @@ class VideoDesc_Model(Model_Wrapper):
             self.matchings_next_to_next = {'preprocessed_input': 'preprocessed_input',
                                            'preprocessed_input2': 'preprocessed_input2',
                                            'next_state': 'prev_state'}
-            if params['RNN_TYPE'] == 'LSTM':
+            if 'LSTM' in params['RNN_TYPE']:
                 self.ids_inputs_next.append('prev_memory')
                 self.ids_outputs_next.append('next_memory')
                 self.matchings_init_to_next['next_memory'] = 'prev_memory'
@@ -2935,7 +2945,9 @@ class VideoDesc_Model(Model_Wrapper):
         :return:
         """
         # Prepare variables for temporally linked samples
+        print("MODEL")
         self.ids_temporally_linked_inputs = [self.ids_inputs[2]]
+        print(self.ids_temporally_linked_inputs)
         self.matchings_sample_to_next_sample = {self.ids_outputs[0]: self.ids_inputs[2]}
 
         # Video model

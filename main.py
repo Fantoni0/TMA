@@ -189,7 +189,9 @@ def apply_Video_model(params):
 
     ########### Apply sampling
     extra_vars = dict()
-    extra_vars['tokenize_f'] = eval('dataset.' + params['TOKENIZATION_METHOD'])
+    extra_vars['tokenize_f']   = eval('dataset.' + params['TOKENIZATION_METHOD'])
+    extra_vars['detokenize_f'] =  eval('dataset.' + params['DETOKENIZATION_METHOD'])
+    extra_vars['apply_detokenization'] = params['APPLY_DETOKENIZATION']
     extra_vars['language'] = params.get('TRG_LAN', 'en')
 
     for s in params["EVAL_ON_SETS"]:
@@ -220,7 +222,7 @@ def apply_Video_model(params):
                                                                                              params[
                                                                                                  'DATASET_NAME'] and '-video' not in \
                                                                                                                      params[
-                                                                                                                         'DATASET_NAME']
+                                                                                                                          'DATASET_NAME']
             predictions = video_model.predictBeamSearchNet(dataset, params_prediction)[s]
             predictions = decode_predictions_beam_search(predictions, vocab, verbose=params['VERBOSE'])
         else:
@@ -294,6 +296,8 @@ def buildCallbacks(params, model, dataset):
         if params['BEAM_SEARCH']:
             extra_vars['beam_size'] = params.get('BEAM_SIZE', 6)
             extra_vars['state_below_index'] = params.get('BEAM_SEARCH_COND_INPUT', -1)
+            extra_vars['detokenize_f'] = eval('dataset.' + params['DETOKENIZATION_METHOD'])
+            extra_vars['apply_detokenization'] = params['APPLY_DETOKENIZATION']
             extra_vars['maxlen'] = params.get('MAX_OUTPUT_TEXT_LEN_TEST', 30)
             extra_vars['optimized_search'] = params.get('OPTIMIZED_SEARCH', True) and '-upperbound' not in params[
                 'DATASET_NAME']
@@ -363,7 +367,7 @@ def buildCallbacks(params, model, dataset):
             extra_vars['beam_size'] = params['BEAM_SIZE']
             extra_vars['state_below_index'] = params.get('BEAM_SEARCH_COND_INPUT', -1)
             extra_vars['maxlen'] = params['MAX_OUTPUT_TEXT_LEN_TEST']
-            extra_vars['optimized_search'] = params['OPTIMIZED_SEARCH'] and '-upperbound' not in params['DATASET_NAME']
+            extra_vars['optimized_search'] = params['OPTIMIZED_SEARCH'] and '-upperbou nd' not in params['DATASET_NAME']
             extra_vars['model_inputs'] = params['INPUTS_IDS_MODEL']
             extra_vars['model_outputs'] = params['OUTPUTS_IDS_MODEL']
             extra_vars['dataset_inputs'] = params['INPUTS_IDS_DATASET']
