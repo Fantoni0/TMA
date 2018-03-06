@@ -42,7 +42,7 @@ def train_model(params):
     ########### Build model
 
     if params['MODE'] == 'finetuning':
-        # video_model = loadModel(params['PRE_TRAINED_MODEL_STORE_PATHS'], params['RELOAD'])
+            # video_model = loadModel(params['PRE_TRAINED_MODEL_STORE_PATHS'], params['RELOAD'])
         video_model = VideoDesc_Model(params,
                                       type=params['MODEL_TYPE'],
                                       verbose=params['VERBOSE'],
@@ -154,7 +154,8 @@ def train_model(params):
                        'metric_check': params.get('STOP_METRIC', None),
                        'eval_on_epochs': params.get('EVAL_EACH_EPOCHS', True),
                        'each_n_epochs': params.get('EVAL_EACH', 1),
-                       'start_eval_on_epoch': params.get('START_EVAL_ON_EPOCH', 0)
+                       'start_eval_on_epoch': params.get('START_EVAL_ON_EPOCH', 0),
+                       'temporally_linked': '-linked' in params['DATASET_NAME'] and not params['UPPERBOUND']
                        }
 
     video_model.trainNet(dataset, training_params)
@@ -183,7 +184,7 @@ def apply_Video_model(params):
     ########### Load model
     video_model = loadModel(params['STORE_PATH'], params['SAMPLING_RELOAD_POINT'],
                             reload_epoch=params['SAMPLING_RELOAD_EPOCH'])
-    video_model.setOptimizer()
+    # video_model.setOptimizer()
     ###########
 
 
@@ -212,17 +213,14 @@ def apply_Video_model(params):
             params_prediction['maxlen'] = params['MAX_OUTPUT_TEXT_LEN_TEST']
             params_prediction['optimized_search'] = params['OPTIMIZED_SEARCH'] and '-upperbound' not in params[
                 'DATASET_NAME']
+            params_prediction['state_below_index'] = params.get('STATE_BELOW_INDEX', 1)
             params_prediction['model_inputs'] = params['INPUTS_IDS_MODEL']
             params_prediction['model_outputs'] = params['OUTPUTS_IDS_MODEL']
             params_prediction['dataset_inputs'] = params['INPUTS_IDS_DATASET']
             params_prediction['dataset_outputs'] = params['OUTPUTS_IDS_DATASET']
             params_prediction['normalize_probs'] = params['NORMALIZE_SAMPLING']
             params_prediction['alpha_factor'] = params['ALPHA_FACTOR']
-            params_prediction['temporally_linked'] = '-linked' in params['DATASET_NAME'] and '-upperbound' not in \
-                                                                                             params[
-                                                                                                 'DATASET_NAME'] and '-video' not in \
-                                                                                                                     params[
-                                                                                                                          'DATASET_NAME']
+            params_prediction['temporally_linked'] = '-linked' in params['DATASET_NAME'] and not params['UPPERBOUND']
             predictions = video_model.predictBeamSearchNet(dataset, params_prediction)[s]
             predictions = decode_predictions_beam_search(predictions, vocab, verbose=params['VERBOSE'])
         else:
@@ -230,7 +228,7 @@ def apply_Video_model(params):
             predictions = decode_predictions(predictions, 1, vocab, params['SAMPLING'], verbose=params['VERBOSE'])
 
         # Store result
-        filepath = video_model.model_path + '/' + s + '_sampling.pred'  # results file
+        filepath = params['RELOAD_PATH'] + '/' + s + '_sampling.pred' #video_model.model_path + '/' + s + '_sampling.pred'  # results file
         if params['SAMPLING_SAVE_MODE'] == 'list':
             list2file(filepath, predictions)
         else:
@@ -238,8 +236,9 @@ def apply_Video_model(params):
 
         # Evaluate if any metric in params['METRICS']
         for metric in params['METRICS']:
-            logging.info('Evaluating on metric ' + metric)
-            filepath = video_model.model_path + '/' + s + '_sampling.' + metric  # results file
+            logging.info('Evaluating on metric ' + metric) + s + '_sampling.' + metric  # results file
+            filepath = params['RELOAD_PATH'] + '/'
+            # video_model.model_path + '/' + s + '_sampling.' + metric  # results file
 
             # Evaluate on the chosen metric
             extra_vars[s] = dict()
@@ -307,8 +306,7 @@ def buildCallbacks(params, model, dataset):
             extra_vars['dataset_outputs'] = params['OUTPUTS_IDS_DATASET']
             extra_vars['normalize_probs'] = params.get('NORMALIZE_SAMPLING', False)
             extra_vars['alpha_factor'] = params.get('ALPHA_FACTOR', 1.)
-            extra_vars['temporally_linked'] = '-linked' in params['DATASET_NAME'] and '-upperbound' not in params[
-                'DATASET_NAME'] and '-video' not in params['DATASET_NAME']
+            extra_vars['temporally_linked'] = '-linked' in params['DATASET_NAME'] and not params['UPPERBOUND']
             input_text_id = None
             vocab_src = None
 
@@ -374,8 +372,7 @@ def buildCallbacks(params, model, dataset):
             extra_vars['dataset_outputs'] = params['OUTPUTS_IDS_DATASET']
             extra_vars['normalize_probs'] = params['NORMALIZE_SAMPLING']
             extra_vars['alpha_factor'] = params['ALPHA_FACTOR']
-            extra_vars['temporally_linked'] = '-linked' in params['DATASET_NAME'] and '-upperbound' not in params[
-                'DATASET_NAME'] and '-video' not in params['DATASET_NAME']
+            extra_vars['temporally_linked'] = '-linked' in params['DATASET_NAME'] and not params['UPPERBOUND']
 
         callback_sampling = Sample(model,
                                    dataset,

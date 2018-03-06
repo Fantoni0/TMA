@@ -73,7 +73,8 @@ if __name__ == "__main__":
     params_prediction = dict()
     params_prediction['max_batch_size'] = params.get('BATCH_SIZE', 20)
     params_prediction['n_parallel_loaders'] = params.get('PARALLEL_LOADERS', 1)
-    params_prediction['beam_batch_size'] = params.get('BEAM_SIZE', 6)
+    params_prediction['beam_batch_size'] = params.get('BATCH_SIZE', 50)
+    params_prediction['beam_size'] = params.get('BEAM_SIZE', 8)
     params_prediction['maxlen'] = params.get('MAX_OUTPUT_TEXT_LEN_TEST', 100)
     params_prediction['optimized_search'] = params['OPTIMIZED_SEARCH']
     params_prediction['model_inputs'] = params['INPUTS_IDS_MODEL']
@@ -82,15 +83,16 @@ if __name__ == "__main__":
     params_prediction['dataset_outputs'] = params['OUTPUTS_IDS_DATASET']
     params_prediction['search_pruning'] = params.get('SEARCH_PRUNING', False)
     params_prediction['normalize_probs'] = params.get('NORMALIZE_SAMPLING', False)
-    params_prediction['alpha_factor'] = params.get('ALPHA_FACTOR', 1.0)
+    params_prediction['alpha_factor'] = params.get('ALPHA_FACTOR', 0.0)
     params_prediction['coverage_penalty'] = params.get('COVERAGE_PENALTY', False)
     params_prediction['length_penalty'] = params.get('LENGTH_PENALTY', False)
     params_prediction['length_norm_factor'] = params.get('LENGTH_NORM_FACTOR', 0.0)
     params_prediction['coverage_norm_factor'] = params.get('COVERAGE_NORM_FACTOR', 0.0)
     params_prediction['pos_unk'] = params.get('POS_UNK', False)
-    params_prediction['output_max_length_depending_on_x'] = params.get('MAXLEN_GIVEN_X', True)
+    params_prediction['state_below_index'] = params.get('STATE_BELOW_INDEX', 1)
+    params_prediction['output_max_length_depending_on_x'] = params.get('MAXLEN_GIVEN_X', False)
     params_prediction['output_max_length_depending_on_x_factor'] = params.get('MAXLEN_GIVEN_X_FACTOR', 3)
-    params_prediction['output_min_length_depending_on_x'] = params.get('MINLEN_GIVEN_X', True)
+    params_prediction['output_min_length_depending_on_x'] = params.get('MINLEN_GIVEN_X', False)
     params_prediction['output_min_length_depending_on_x_factor'] = params.get('MINLEN_GIVEN_X_FACTOR', 2)
     params_prediction['temporally_linked'] = '-linked' in params['DATASET_NAME'] and '-upperbound' not in \
                                                                                      params[
@@ -104,6 +106,8 @@ if __name__ == "__main__":
     for s in args.splits:
         # Apply model predictions
         params_prediction['predict_on_sets'] = [s]
+        if args.verbose:
+            print params_prediction
         beam_searcher = BeamSearchEnsemble(models, dataset, params_prediction,
                                            n_best=args.n_best, verbose=args.verbose)
         if args.n_best:

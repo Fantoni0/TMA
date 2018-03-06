@@ -100,25 +100,27 @@ def build_dataset_text(params):
 
         # Set inputs for temporally-linked samples
 
-        # Todo: Add Upperbound to study maximum GAINS!
         # Todo: Add cases for prev and next phrase
         # Set input captions from previous sentence
-        ds, repeat_images = insertTemporallyLinkedSentences(ds, params)
+        ds, repeat_images = insertTemporallyLinkedSentences(ds,
+                                                            params,
+                                                            upperbound=params.get('UPPERBOUND', False))
 
         # Insert empty prev_descriptions on val and test sets
-        for split in ['val', 'test']:
-            ds.setInput([],
-                        split,
-                        type='text',
-                        id=params['INPUTS_IDS_DATASET'][2],
-                        build_vocabulary=params['OUTPUTS_IDS_DATASET'][0],
-                        tokenization=params['TOKENIZATION_METHOD'],
-                        fill=params['FILL'],
-                        pad_on_batch=True,
-                        max_text_len=params['MAX_OUTPUT_TEXT_LEN'],
-                        min_occ=params['MIN_OCCURRENCES_VOCAB'],
-                        required=False,
-                        overwrite_split=True)
+        if not params.get('UPPERBOUND', False):
+            for split in ['val', 'test']:
+                ds.setInput([],
+                            split,
+                            type='text',
+                            id=params['INPUTS_IDS_DATASET'][2],
+                            build_vocabulary=False,
+                            tokenization=params['TOKENIZATION_METHOD'],
+                            fill=params['FILL'],
+                            pad_on_batch=True,
+                            max_text_len=params['MAX_OUTPUT_TEXT_LEN'],
+                            min_occ=params['MIN_OCCURRENCES_VOCAB'],
+                            required=False,
+                            overwrite_split=True)
 
 
         # Process dataset for keeping only one caption per video and storing the rest in a dict() with the following format:
@@ -126,18 +128,18 @@ def build_dataset_text(params):
         keep_n_captions(ds, repeat=[num_captions_val, num_captions_test], n=1, set_names=['val', 'test'])
 
         # Set previous data indices
-        # Not uppderbound when implemented (look original method)
-        for s, file in params['LINK_SAMPLE_FILES'].iteritems():
-            if s in repeat_images:
-                rep = repeat_images[s]
-            else:
-                rep = 1
-            ds.setInput(base_path + '/' + file,
-                        s,
-                        type='id',
-                        required=True, # prueba
-                        id=params['INPUTS_IDS_DATASET'][-1],
-                        repeat_set=rep)
+        if not params.get('UPPERBOUND', False):
+            for s, file in params['LINK_SAMPLE_FILES'].iteritems():
+                if s in repeat_images:
+                    rep = repeat_images[s]
+                else:
+                    rep = 1
+                ds.setInput(base_path + '/' + file,
+                            s,
+                            type='id',
+                            required=True, # prueba
+                            id=params['INPUTS_IDS_DATASET'][-1],
+                            repeat_set=rep)
 
         # We have finished loading the dataset, now we can store it for using it in the future
         saveDataset(ds, params['DATASET_STORE_PATH'])
@@ -531,7 +533,7 @@ def update_dataset_from_file(ds,
                     split,
                     type='text',
                     id=params['INPUTS_IDS_DATASET'][2],
-                    build_vocabulary=params['OUTPUTS_IDS_DATASET'][0],
+                    build_vocabulary=False,
                     tokenization=params['TOKENIZATION_METHOD'],
                     fill=params['FILL'],
                     pad_on_batch=True,
@@ -541,17 +543,16 @@ def update_dataset_from_file(ds,
                     overwrite_split=True)
 
     # Set previous data indices
-    # Not uppderbound when implemented (look original method)
-    print(params['INPUTS_IDS_DATASET'])
-    for s, file in params['LINK_SAMPLE_FILES'].iteritems():
-        rep = 1
-        ds.setInput(input_text_links,
-                    s,
-                    type='id',
-                    id=params['INPUTS_IDS_DATASET'][-1],
-                    repeat_set=rep,
-                    overwrite_split=True,
-                    required=False)
+    if not params.get('UPPERBOUND', False):
+        for s, file in params['LINK_SAMPLE_FILES'].iteritems():
+            rep = 1
+            ds.setInput(input_text_links,
+                        s,
+                        type='id',
+                        id=params['INPUTS_IDS_DATASET'][-1],
+                        repeat_set=rep,
+                        overwrite_split=True,
+                        required=False)
 
     # If we had multiple references per sentence
     if recompute_references:
@@ -870,9 +871,13 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
         """
     base_path = params['DATA_ROOT_PATH']
     repeat_sentences = dict()
-
+    if upperbound:
+        set_names = ['train', 'val', 'test']
+    if params['PREV_SENT_LAN'] == params['TRG_LAN']:
+        prev_vocabulary = params['OUTPUTS_IDS_DATASET'][0]
+    else:
+        prev_vocabulary = params['INPUTS_IDS_DATASET'][0]
     for s in set_names:
-
         # Get temporal links
         links = []
         num_cap = []  # We just have one possible translation as output
@@ -882,76 +887,84 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                 num_cap.append(1)
 
         outputs = []
-        with open(base_path + '/' + params['TEXT_FILES'][s] + params['TRG_LAN'], 'r') as f_outs:
+        with open(base_path + '/' + params['TEXT_FILES'][s] + params['PREV_SENT_LAN'], 'r') as f_outs:
             for line in f_outs:
                 outputs.append(line.strip())
 
         # modify outputs and prepare inputs
-        sentences_repeat = []
-        upperbound_sentences_repeat = []
-        final_outputs = []
-        final_inputs = []
-        for i, link in enumerate(links):
-            ini_out = int(np.sum(num_cap[:i]))
-            these_outputs = outputs[ini_out:ini_out + num_cap[i]]
-
+        if params.get('STEP_LINKS', False):
             if upperbound:
-                if copy:
-                    sentences_repeat.append(num_cap[i])
-                    upperbound_sentences_repeat.append(num_cap[i])
-                    for out in these_outputs:
-                        final_outputs.append(out)
-                        final_inputs.append(out)
-                elif prev:
-                    # first sample in the temporally-linked sequence
-                    if link == -1:
+                upperbound_sentences_repeat = num_cap
+            sentences_repeat = num_cap
+            final_outputs = outputs
+            final_inputs = ['<null>'] + outputs[0:-1]
+        else:
+            sentences_repeat = []
+            upperbound_sentences_repeat = []
+            final_outputs = []
+            final_inputs = []
+
+            for i, link in enumerate(links):
+                ini_out = int(np.sum(num_cap[:i]))
+                these_outputs = outputs[ini_out:ini_out + num_cap[i]]
+
+                if upperbound:
+                    if copy:
                         sentences_repeat.append(num_cap[i])
                         upperbound_sentences_repeat.append(num_cap[i])
                         for out in these_outputs:
                             final_outputs.append(out)
-                            final_inputs.append('')
+                            final_inputs.append(out)
+                    elif prev:
+                        # first sample in the temporally-linked sequence
+                        if link == -1:
+                            sentences_repeat.append(num_cap[i])
+                            upperbound_sentences_repeat.append(num_cap[i])
+                            for out in these_outputs:
+                                final_outputs.append(out)
+                                final_inputs.append('')
+                        else:
+                            prev_ini_out = np.sum(num_cap[:link])
+                            prev_outputs = outputs[prev_ini_out:prev_ini_out + num_cap[link]]
+                            sentences_repeat.append(num_cap[i] * num_cap[link])
+                            for n in range(num_cap[link]):
+                                upperbound_sentences_repeat.append(num_cap[i])
+                                for out in these_outputs:
+                                    final_outputs.append(out)
+                                    final_inputs.append(prev_outputs[n])
+                    elif force_nocopy:
+                        raise NotImplementedError()
+                        prev_outputs = these_outputs
+                        sentences_repeat.append(num_cap[i] * (num_cap[i] - 1))
+                        for n in range(num_cap[i]):
+                            upperbound_sentences_repeat.append(num_cap[i] - 1)
+                            for nthese, out in enumerate(these_outputs):
+                                if nthese != n:
+                                    final_outputs.append(out)
+                                    final_inputs.append(prev_outputs[n])
                     else:
-                        prev_ini_out = np.sum(num_cap[:link])
-                        prev_outputs = outputs[prev_ini_out:prev_ini_out + num_cap[link]]
-                        sentences_repeat.append(num_cap[i] * num_cap[link])
-                        for n in range(num_cap[link]):
+                        prev_outputs = these_outputs
+                        sentences_repeat.append(num_cap[i] * num_cap[i])
+                        for n in range(num_cap[i]):
                             upperbound_sentences_repeat.append(num_cap[i])
                             for out in these_outputs:
                                 final_outputs.append(out)
                                 final_inputs.append(prev_outputs[n])
-                elif force_nocopy:
-                    raise NotImplementedError()
-                    prev_outputs = these_outputs
-                    sentences_repeat.append(num_cap[i] * (num_cap[i] - 1))
-                    for n in range(num_cap[i]):
-                        upperbound_sentences_repeat.append(num_cap[i] - 1)
-                        for nthese, out in enumerate(these_outputs):
-                            if nthese != n:
-                                final_outputs.append(out)
-                                final_inputs.append(prev_outputs[n])
                 else:
-                    prev_outputs = these_outputs
-                    sentences_repeat.append(num_cap[i] * num_cap[i])
-                    for n in range(num_cap[i]):
-                        upperbound_sentences_repeat.append(num_cap[i])
+                    # first sample in the temporally-linked sequence
+                    if link == -1:
+                        sentences_repeat.append(num_cap[i])
                         for out in these_outputs:
                             final_outputs.append(out)
-                            final_inputs.append(prev_outputs[n])
-            else:
-                # first sample in the temporally-linked sequence
-                if link == -1:
-                    sentences_repeat.append(num_cap[i])
-                    for out in these_outputs:
-                        final_outputs.append(out)
-                        final_inputs.append('.')
-                else:
-                    prev_ini_out = int(np.sum(num_cap[:link]))
-                    prev_outputs = outputs[prev_ini_out:prev_ini_out + num_cap[link]]
-                    sentences_repeat.append(num_cap[i] * num_cap[link])
-                    for n in range(num_cap[link]):
-                        for out in these_outputs:
-                            final_outputs.append(out)
-                            final_inputs.append(prev_outputs[n])
+                            final_inputs.append('<null>')
+                    else:
+                        prev_ini_out = int(np.sum(num_cap[:link]))
+                        prev_outputs = outputs[prev_ini_out:prev_ini_out + num_cap[link]]
+                        sentences_repeat.append(num_cap[i] * num_cap[link])
+                        for n in range(num_cap[link]):
+                             for out in these_outputs:
+                                 final_outputs.append(out)
+                                 final_inputs.append(prev_outputs[n])
 
         # Overwrite input images assigning the new repeat pattern
         #for feat_type in params['FEATURE_NAMES']:
@@ -967,7 +980,7 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                     data_augmentation_types=params['DATA_AUGMENTATION_TYPE'])
 
 
-        '''
+
         # Overwrite outputs assigning the new outputs repeat pattern
         ds.setOutput(final_outputs,
                      s,
@@ -982,7 +995,7 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                      sample_weights=params['SAMPLE_WEIGHTS'],
                      min_occ=params['MIN_OCCURRENCES_VOCAB'],
                      overwrite_split=True)
-        '''
+
         # Overwrite the input state_below assigning the new outputs repeat pattern
         ds.setInput(final_outputs,
                     s,
@@ -1005,7 +1018,8 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
                     s,
                     type='text',
                     id=params['INPUTS_IDS_DATASET'][2],
-                    build_vocabulary=params['OUTPUTS_IDS_DATASET'][0],
+                    build_vocabulary=prev_vocabulary,
+                    required=False,
                     tokenization=params['TOKENIZATION_METHOD'],
                     fill=params['FILL'],
                     pad_on_batch=True,
@@ -1015,7 +1029,6 @@ def insertTemporallyLinkedSentences(ds, params, set_names=['train'],
         if upperbound:
             sentences_repeat = upperbound_sentences_repeat
         repeat_sentences[s] = sentences_repeat
-
     return ds, repeat_sentences
 
 def insertTemporallyLinkedCaptionsVidText(ds, params, vidtext_set_names={'video': ['train'], 'text': ['train']}):
